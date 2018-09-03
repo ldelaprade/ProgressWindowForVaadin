@@ -6,7 +6,7 @@
 	<artifactId>progresswindow-for-vaadin-root</artifactId>
 	<packaging>pom</packaging>
 	<version>1.0</version>
-	<name>Wizards for Vaadin Parent</name>
+	<name>Progress Window for Vaadin Parent</name>
 
 	<modules>
 		<module>progresswindow-for-vaadin</module>
