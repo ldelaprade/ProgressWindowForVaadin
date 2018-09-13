@@ -76,31 +76,34 @@ import com.vaadin.ui.Window;
 //
 public abstract class ProgressWindow extends Window implements FocusListener, ClickListener
 {
-    private static final long serialVersionUID = 5253966202431615380L;
-    private VerticalLayout layout = new VerticalLayout();
-    private Label description = new Label();
-    private ProgressBar progressIndicator = new ProgressBar();
+    private static final long    serialVersionUID  = 5253966202431615380L;
+    private final VerticalLayout layout            = new VerticalLayout();
+    private final Label          description       = new Label();
+    private final ProgressBar    progressIndicator = new ProgressBar();
 
-    // The lengthy action you'll implement
+    // The lengthy action you'll have to implement
     public abstract void lengthyOperation() throws Exception;
+
     private boolean processWasStarted = false;
 
     // members for a 'Cancel' button mode
     // We won't use semaphore and thread spawning for
     // the lightweight non-cancel-able progress windows mode
-    private boolean hasCancelButton = false;
-    private NativeButton btnKill = null;
-    String btnKillCaption = null;
-    Thread threadedLenghtyOperation = null;
+    private boolean      hasCancelButton          = false;
+    private NativeButton btnKill                  = null;
+    String               btnKillCaption           = null;
+    Thread               threadedLenghtyOperation = null;
 
     public ProgressWindow(String caption)
     {
         init(caption, "Please wait...");
     }
+
     public ProgressWindow()
     {
         init("Job in progress", "Please wait...");
     }
+
     public ProgressWindow(String caption, String progressInfo)
     {
         init(caption, progressInfo);
@@ -108,20 +111,13 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
 
     public ProgressWindow(String caption, String progressInfo, String killBtnText)
     {
-        if( UI.getCurrent().getPushConfiguration().getPushMode().isEnabled() )
-        {
-          hasCancelButton = true;
-          btnKillCaption = killBtnText;
-        }
-        //else
-        //    Notification.show("Vaadin Push not enabled. 'Cancel' button cannot be added", Type.HUMANIZED_MESSAGE);
+        hasCancelButton = true;
+        btnKillCaption = killBtnText;
         init(caption, progressInfo);
     }
 
     public void init(String caption, String progressInfo)
     {
-        //WebBrowser webBrowser = Page.getCurrent().getWebBrowser();
-
         setCaption(caption);
         setClosable(false);
 
@@ -142,7 +138,7 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
         setResizable(false);
         UI.getCurrent().addWindow(this);
 
-        if( hasCancelButton && btnKill==null )
+        if(hasCancelButton && btnKill == null)
         {
             btnKill = new NativeButton();
             btnKill.setCaption(btnKillCaption);
@@ -158,43 +154,35 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
         setModal(true);
 
         // e.g. in autotest mode, we cannot relay on getting focus
-        Object urlAttribute = VaadinSession.getCurrent().getAttribute("NoProgressWindow");
-        if ( urlAttribute!=null && (boolean)urlAttribute )
+        final Object urlAttribute = VaadinSession.getCurrent().getAttribute("NoProgressWindow");
+        if(urlAttribute != null && (boolean)urlAttribute)
         {
             // Direct processing - Progress Window will not be visible
-            try
-            {
-                lengthyOperation();
-            }
-            catch (Exception e)
-            {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-            finally
-            {
-                cleanExit();
-            }
+            try{ lengthyOperation(); }
+            catch(final Exception e) { OnException(e); }
+            finally { cleanExit(); }
         }
         else
         {
-            // The only way to make Progress Window visible before lengthy process is started:
-            // Start the Modal progress window; when it gets focus, ask server to launch lengthy job
+            // The only way to make Progress Window visible before lengthy
+            // process is started:
+            // Start the Modal progress window; when it gets focus, ask server
+            // to launch lengthy job
             addFocusListener(this);
         }
 
     }
 
-    //@SuppressWarnings("deprecation")
+    // @SuppressWarnings("deprecation")
     @Override
     public void buttonClick(ClickEvent event)
     {
-        if( btnKill!=null && event.getButton() == btnKill )
+        if(btnKill != null && event.getButton() == btnKill)
         {
             btnKill.setEnabled(false);
             btnKill.setCaption("Closing...");
 
-            if( threadedLenghtyOperation!=null )
+            if(threadedLenghtyOperation != null)
             {
                 threadedLenghtyOperation.interrupt();
             }
@@ -207,14 +195,17 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
     public void focus(FocusEvent event)
     {
         // processWasStarted flag to protect against multiple 'OnFocus' events
-        if( !processWasStarted )
+        if(!processWasStarted)
         {
             try
             {
                 processWasStarted = true;
+                final VaadinSession vaadinCurSession = VaadinSession.getCurrent();
                 final UI appUI = UI.getCurrent();
+                final boolean pushEnabled = appUI.getPushConfiguration().getPushMode().isEnabled();
 
-                if( !hasCancelButton || appUI == null ) lengthyOperation();
+                if(!hasCancelButton || appUI == null)
+                    lengthyOperation();
                 else
                 {
                     threadedLenghtyOperation = new Thread()
@@ -224,20 +215,33 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
                         {
                             try
                             {
+                                // Setting vaadin current session and UI to
+                                // allow
+                                // Cancel button click, Vaadin notifications
+                                // etc...
+                                VaadinSession.setCurrent(vaadinCurSession);
+                                UI.setCurrent(appUI);
                                 lengthyOperation();
                             }
-                            catch (Exception e)
+                            catch(final Exception e)
                             {
-                                e.printStackTrace();
+                                appUI.access(() -> OnException(e));
                             }
                             finally
                             {
-                                cleanExit();
-                                // Need push call because we are in Background thread
-                                // To enable Push, Note that UI class need Push annotation like this:
-                                // @Push(PushMode.MANUAL)
-                                // public class JetUI extends UI
-                                appUI.push();
+                                appUI.access
+                                (
+                                    () ->
+                                    {
+                                        cleanExit();
+                                        // Need push call because we are in
+                                        // Background thread
+                                        // To enable Push, Note that UI class need
+                                        // Push annotation like this:
+                                        // @Push(PushMode.MANUAL)
+                                        if(pushEnabled) appUI.push();
+                                    }
+                                );
                             }
                         }
                     };
@@ -247,13 +251,13 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
                 }
 
             }
-            catch (Exception e)
+            catch(final Exception e)
             {
                 OnException(e);
             }
             finally
             {
-                if( btnKill==null )
+                if(btnKill == null)
                 {
                     // When no Task thread used,
                     // When we are here, task is complete
@@ -262,7 +266,6 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
             }
         }
     }
-
 
     protected void cleanExit()
     {
