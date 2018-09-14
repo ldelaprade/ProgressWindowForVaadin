@@ -144,8 +144,8 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
             btnKill.setCaption(btnKillCaption);
             layout.addComponent(btnKill);
             layout.setComponentAlignment(btnKill, Alignment.BOTTOM_CENTER);
-
             this.setClosable(true);
+            addCloseListener(event -> onClose());
             btnKill.addClickListener(clicEvent -> buttonClick(clicEvent));
         }
 
@@ -173,7 +173,17 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
 
     }
 
-    // @SuppressWarnings("deprecation")
+    private void onClose()
+    {
+        if
+        (
+            threadedLenghtyOperation != null &&
+            threadedLenghtyOperation.isAlive() &&
+            !threadedLenghtyOperation.isInterrupted()
+        )
+        threadedLenghtyOperation.interrupt();
+    }
+
     @Override
     public void buttonClick(ClickEvent event)
     {
@@ -181,11 +191,6 @@ public abstract class ProgressWindow extends Window implements FocusListener, Cl
         {
             btnKill.setEnabled(false);
             btnKill.setCaption("Closing...");
-
-            if(threadedLenghtyOperation != null)
-            {
-                threadedLenghtyOperation.interrupt();
-            }
             setModal(false);
             close();
         }
